@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StreamFusion — Chat Overlay</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+
+    html, body {
+      width: 100%; height: 100%;
+      background: #0e0e0e;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      overflow: hidden;
+    }
+
+    /* Transparent mode for OBS overlay: add ?bg=transparent to URL */
+    body.transparent { background: transparent; }
+
+    #messages {
+      position: absolute;
+      bottom: 0; left: 0; right: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      padding: 12px;
+      max-height: 100vh;
+      overflow: hidden;
+    }
+
+    .msg {
+      display: flex;
+      align-items: baseline;
+      gap: 6px;
+      flex-wrap: wrap;
+      background: rgba(0, 0, 0, 0.55);
+      border-radius: 6px;
+      padding: 5px 9px;
+      line-height: 1.45;
+      animation: appear 0.2s ease;
+    }
+
+    @keyframes appear {
+      from { opacity: 0; transform: translateY(5px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    .badge {
+      font-size: 0.6rem;
+      font-weight: 800;
+      padding: 1px 5px;
+      border-radius: 3px;
+      text-transform: lowercase;
+      letter-spacing: 0.03em;
+      flex-shrink: 0;
+    }
+    .badge.twitch  { background: rgba(145, 70, 255, 0.45); color: #d4bcff; }
+    .badge.kick    { background: rgba(83,  252,  24, 0.3);  color: #88ff55; }
+    .badge.youtube { background: rgba(255,  0,    0, 0.35); color: #ffaaaa; }
+
+    .username { font-size: 0.88rem; font-weight: 700; flex-shrink: 0; }
+    .sep      { font-size: 0.85rem; color: rgba(255,255,255,0.4); flex-shrink: 0; }
+    .text     { font-size: 0.88rem; color: rgba(255,255,255,0.92); word-break: break-word; }
+
+    /* Copy toolbar — hidden inside OBS/Streamlabs */
+    #copy-bar {
+      position: fixed;
+      top: 0; left: 0; right: 0;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 16px;
+      background: rgba(10,10,10,0.95);
+      border-bottom: 1px solid #2a2a2a;
+    }
+    #copy-bar.hidden { display: none; }
+    #copy-bar-label {
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #555;
+    }
+    #copy-bar-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      width: 100%;
+      max-width: 420px;
+    }
+    .copy-btn {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 12px 10px;
+      border: 1px solid #333;
+      border-radius: 8px;
+      background: #141414;
+      color: #bbb;
+      font-size: 0.72rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, color 0.15s;
+      text-align: center;
+      line-height: 1.3;
+    }
+    .copy-btn:hover { background: #1f1f1f; border-color: #555; color: #eee; }
+    .copy-btn.copied { border-color: #53FC18; color: #53FC18; background: rgba(83,252,24,0.06); }
+    .copy-btn svg { opacity: 0.6; }
+    .copy-btn:hover svg, .copy-btn.copied svg { opacity: 1; }
+
+    /* No-streams notice (shown when URL has no params) */
+    #notice {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      color: #888;
+      font-size: 0.85rem;
+      text-align: center;
+      padding: 24px;
+    }
+    #notice.hidden { display: none; }
+    #notice code {
+      background: #1a1a1a;
+      border: 1px solid #333;
+      border-radius: 4px;
+      padding: 3px 8px;
+      font-size: 0.78rem;
+      color: #aaa;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+
+<div id="copy-bar">
+  <div id="copy-bar-label">Browser Source URL</div>
+  <div id="copy-bar-grid">
+    <button class="copy-btn" id="btn-copy-url">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      Copy for OBS / Streamlabs
+    </button>
+    <button class="copy-btn" id="btn-copy-transparent">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+      Copy with Transparent BG
+    </button>
+  </div>
+</div>
+
+<div id="notice">
+  <p>No channels configured.</p>
+  <p>Open this overlay from StreamFusion using the<br><strong>Open Overlay</strong> button, or add params manually:</p>
+  <code>overlay.html?twitch=channel&amp;kick=channel</code>
+</div>
+
+<div id="messages"></div>
+
+<script>
+'use strict';
+
+// Hide copy bar when running inside OBS or Streamlabs
+const ua = navigator.userAgent;
+if (/OBS\/|StreamlabsOBS|slobs/i.test(ua)) {
+  document.getElementById('copy-bar').classList.add('hidden');
+}
+
+function copyURL(transparent) {
+  const url = new URL(location.href);
+  if (transparent) url.searchParams.set('bg', 'transparent');
+  else url.searchParams.delete('bg');
+  navigator.clipboard.writeText(url.toString()).then(() => {
+    const btn = transparent
+      ? document.getElementById('btn-copy-transparent')
+      : document.getElementById('btn-copy-url');
+    btn.classList.add('copied');
+    const orig = btn.innerHTML;
+    btn.innerHTML = btn.innerHTML.replace(/Copy.+/, 'Copied!');
+    setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = orig; }, 2000);
+  });
+}
+
+document.getElementById('btn-copy-url').addEventListener('click', () => copyURL(false));
+document.getElementById('btn-copy-transparent').addEventListener('click', () => copyURL(true));
+
+const params  = new URLSearchParams(location.search);
+const TWITCH  = (params.get('twitch') || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+const KICK    = (params.get('kick')   || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+const MAX     = Math.max(10, Math.min(200, parseInt(params.get('max') || '50', 10)));
+
+if (params.get('bg') === 'transparent') document.body.classList.add('transparent');
+if (TWITCH.length || KICK.length) document.getElementById('notice').classList.add('hidden');
+
+const msgsEl = document.getElementById('messages');
+
+// ── Helpers ───────────────────────────────────────────────────
+function esc(s) {
+  return String(s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+function userColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0;
+  return `hsl(${Math.abs(h) % 360}, 65%, 72%)`;
+}
+
+function addMsg(platform, username, text) {
+  const el = document.createElement('div');
+  el.className = 'msg';
+  el.innerHTML =
+    `<span class="badge ${esc(platform)}">${esc(platform)}</span>` +
+    `<span class="username" style="color:${userColor(username)}">${esc(username)}</span>` +
+    `<span class="sep">:</span>` +
+    `<span class="text">${esc(text)}</span>`;
+  msgsEl.appendChild(el);
+  while (msgsEl.children.length > MAX) msgsEl.removeChild(msgsEl.firstChild);
+}
+
+// ── Twitch IRC ────────────────────────────────────────────────
+if (TWITCH.length) {
+  let active = true;
+
+  function twitchConnect() {
+    const ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
+
+    ws.addEventListener('open', () => {
+      ws.send('PASS SCHMOOPIIE');
+      ws.send('NICK justinfan' + (Math.floor(Math.random() * 80000) + 10000));
+      ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
+      TWITCH.forEach(ch => ws.send('JOIN #' + ch));
+    });
+
+    ws.addEventListener('message', e => {
+      for (const line of e.data.split('\r\n')) {
+        if (!line) continue;
+        if (line.startsWith('PING')) { ws.send('PONG :tmi.twitch.tv'); continue; }
+        if (!line.includes('PRIVMSG')) continue;
+
+        let name = '';
+        const tag = line.match(/^@([^ ]+)/);
+        if (tag) {
+          const dn = tag[1].split(';').find(t => t.startsWith('display-name='));
+          if (dn) name = dn.split('=')[1];
+        }
+        const pm = line.match(/:([A-Za-z0-9_]+)![A-Za-z0-9_]+@[A-Za-z0-9_.]+\.tmi\.twitch\.tv PRIVMSG #[A-Za-z0-9_]+ :(.+)/);
+        if (pm) addMsg('twitch', name || pm[1], pm[2]);
+      }
+    });
+
+    ws.addEventListener('close', () => { if (active) setTimeout(twitchConnect, 5000); });
+    ws.addEventListener('error', () => ws.close());
+  }
+
+  twitchConnect();
+}
+
+// ── Kick polling ──────────────────────────────────────────────
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+for (const channel of KICK) {
+  (async () => {
+    let chatroomId = null;
+    for (const url of [
+      `https://kick.com/api/v2/channels/${encodeURIComponent(channel)}`,
+      `https://kick.com/api/v1/channels/${encodeURIComponent(channel)}`,
+    ]) {
+      for (let i = 0; i < 3; i++) {
+        if (i > 0) await sleep(2000 * i);
+        try {
+          const r = await fetch(url);
+          if (r.status === 429) continue;
+          if (!r.ok) break;
+          const d = await r.json();
+          chatroomId = d.chatroom?.id ?? d.id ?? null;
+          if (chatroomId) break;
+        } catch { break; }
+      }
+      if (chatroomId) break;
+    }
+    if (!chatroomId) return;
+
+    const seen = new Set();
+    const startTime = Date.now();
+
+    async function poll() {
+      try {
+        const r = await fetch(`https://kick.com/api/v1/chat-rooms/${chatroomId}/messages`);
+        if (r.ok) {
+          const d = await r.json();
+          const msgs = Array.isArray(d) ? d
+                     : d?.data?.messages ?? d?.messages ?? d?.data ?? [];
+          for (const msg of [...msgs].reverse()) {
+            const id     = msg.id ?? msg.message_id;
+            const text   = msg.content ?? msg.message ?? msg.text;
+            const sender = msg.sender?.username ?? msg.sender?.name ?? msg.username;
+            if (!id || !text || !sender) continue;
+            if (seen.has(id)) continue;
+            seen.add(id);
+            const msgTime = new Date(msg.created_at ?? msg.createdAt ?? 0).getTime();
+            if (msgTime > 0 && msgTime <= startTime) continue;
+            addMsg('kick', sender, text);
+          }
+          if (seen.size > 400) {
+            const trimmed = [...seen].slice(-200);
+            seen.clear();
+            trimmed.forEach(id => seen.add(id));
+          }
+        }
+      } catch {}
+      setTimeout(poll, 4000);
+    }
+
+    poll();
+  })();
+}
+</script>
+</body>
+</html>

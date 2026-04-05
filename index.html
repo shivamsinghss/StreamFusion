@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StreamFusion — Multi-Platform Chat Viewer</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <!-- Toolbar -->
+  <header class="toolbar">
+    <div class="logo">
+      <svg width="28" height="28" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <rect width="28" height="28" rx="6" fill="#1a1a1a"/>
+        <rect x="3" y="3" width="9" height="9" rx="2" fill="#FF0000"/>
+        <rect x="16" y="3" width="9" height="9" rx="2" fill="#9146FF"/>
+        <rect x="3" y="16" width="9" height="9" rx="2" fill="#53FC18"/>
+        <rect x="16" y="16" width="9" height="9" rx="2" fill="#444"/>
+      </svg>
+      <span class="logo-text">StreamFusion</span>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="btn-secondary" id="btn-overlay" aria-label="Open chat overlay">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M19 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm0 16H5V5h14v14zM7 10h2v7H7zm4-3h2v10h-2zm4 6h2v4h-2z"/>
+        </svg>
+        Overlay
+      </button>
+      <button class="btn-secondary" id="btn-clear-all" aria-label="Remove all streams">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M3 6h18M8 6V4h8v2M19 6l-1 14H6L5 6"/>
+        </svg>
+        Clear All
+      </button>
+      <button class="btn-primary" id="btn-add-stream" aria-label="Add stream">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+          <path d="M8 1a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2H9v5a1 1 0 1 1-2 0V9H2a1 1 0 1 1 0-2h5V2a1 1 0 0 1 1-1z"/>
+        </svg>
+        Add Stream
+      </button>
+    </div>
+  </header>
+
+  <!-- Empty state -->
+  <div class="empty-state" id="empty-state">
+    <div class="empty-icon">
+      <svg width="64" height="64" viewBox="0 0 64 64" fill="none" aria-hidden="true">
+        <rect width="64" height="64" rx="12" fill="#1a1a1a"/>
+        <rect x="6" y="6" width="22" height="22" rx="4" fill="#FF0000" opacity="0.3"/>
+        <rect x="36" y="6" width="22" height="22" rx="4" fill="#9146FF" opacity="0.3"/>
+        <rect x="6" y="36" width="22" height="22" rx="4" fill="#53FC18" opacity="0.3"/>
+        <rect x="36" y="36" width="22" height="22" rx="4" fill="#444" opacity="0.3"/>
+      </svg>
+    </div>
+    <h2>No streams added yet</h2>
+    <p>Click <strong>Add Stream</strong> to paste YouTube, Twitch, or Kick URLs and view chats side by side.</p>
+    <button class="btn-primary" id="btn-empty-add">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M8 1a1 1 0 0 1 1 1v5h5a1 1 0 1 1 0 2H9v5a1 1 0 1 1-2 0V9H2a1 1 0 1 1 0-2h5V2a1 1 0 0 1 1-1z"/>
+      </svg>
+      Add Stream
+    </button>
+  </div>
+
+  <!-- App body: combined chat sidebar + stream grid -->
+  <div class="app-body" id="app-body" hidden>
+
+    <!-- Combined Chat (always in DOM, never dynamically inserted) -->
+    <aside class="combined-panel" aria-label="Combined chat">
+      <div class="combined-panel-header">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+          <path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z"/>
+        </svg>
+        <span>Combined Chat</span>
+      </div>
+      <div class="combined-messages" id="combined-messages">
+        <div class="combined-placeholder">Add a stream to see live chat here…</div>
+      </div>
+    </aside>
+
+    <!-- Stream iframe panels -->
+    <main id="chat-grid" class="chat-grid" aria-label="Chat panels"></main>
+
+  </div>
+
+  <!-- Modal -->
+  <div class="modal-overlay" id="modal-overlay" role="dialog" aria-modal="true" aria-labelledby="modal-title" hidden>
+    <div class="modal">
+      <div class="modal-header">
+        <h2 id="modal-title">Add Stream Chat</h2>
+        <button class="btn-icon" id="btn-modal-close" aria-label="Close">
+          <svg width="18" height="18" viewBox="0 0 18 18" fill="currentColor" aria-hidden="true">
+            <path d="M2.293 2.293a1 1 0 0 1 1.414 0L9 7.586l5.293-5.293a1 1 0 1 1 1.414 1.414L10.414 9l5.293 5.293a1 1 0 0 1-1.414 1.414L9 10.414l-5.293 5.293a1 1 0 0 1-1.414-1.414L7.586 9 2.293 3.707a1 1 0 0 1 0-1.414z"/>
+          </svg>
+        </button>
+      </div>
+
+      <div class="modal-body">
+
+        <!-- Step 1: Platform picker -->
+        <div id="modal-step-platform">
+          <p class="modal-hint">Choose a platform to add:</p>
+          <div class="platform-picker">
+
+            <button class="platform-pick-btn youtube" data-platform="youtube">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M23.498 6.186a3.016 3.016 0 0 0-2.122-2.136C19.505 3.545 12 3.545 12 3.545s-7.505 0-9.377.505A3.017 3.017 0 0 0 .502 6.186C0 8.07 0 12 0 12s0 3.93.502 5.814a3.016 3.016 0 0 0 2.122 2.136c1.871.505 9.376.505 9.376.505s7.505 0 9.377-.505a3.015 3.015 0 0 0 2.122-2.136C24 15.93 24 12 24 12s0-3.93-.502-5.814zM9.545 15.568V8.432L15.818 12l-6.273 3.568z"/>
+              </svg>
+              <span>YouTube</span>
+            </button>
+
+            <button class="platform-pick-btn twitch" data-platform="twitch">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h3.428L22.286 12V0zm14.571 11.143l-3.428 3.428h-3.429l-3 3v-3H6.857V1.714h13.714z"/>
+              </svg>
+              <span>Twitch</span>
+            </button>
+
+            <button class="platform-pick-btn kick" data-platform="kick">
+              <svg width="30" height="30" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm-1 16.5l-3-3 3-3V8l-5 5 5 5v-1.5zm2 0V15l3-3-3-3V7.5l5 5-5 5z"/>
+              </svg>
+              <span>Kick</span>
+            </button>
+
+          </div>
+        </div>
+
+        <!-- Step 2: URL / channel input -->
+        <div id="modal-step-url" hidden>
+          <div class="step2-header">
+            <button class="btn-back" id="btn-step-back">← Back</button>
+            <span id="step2-platform-name" class="step2-platform-badge"></span>
+          </div>
+          <div class="input-group">
+            <input
+              type="url"
+              id="input-stream-url"
+              class="url-input"
+              placeholder="Paste stream URL…"
+              autocomplete="off"
+              spellcheck="false"
+            />
+            <span class="input-hint" id="hint-stream-url"></span>
+          </div>
+        </div>
+
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn-secondary" id="btn-modal-cancel">Cancel</button>
+        <button class="btn-primary" id="btn-modal-confirm" hidden>Add Chat</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+
+  <!-- Toast notification -->
+  <div id="toast" style="
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(20px);
+    background:#222; border:1px solid #444; color:#e8e8e8;
+    padding:10px 18px; border-radius:8px; font-size:0.85rem;
+    opacity:0; transition:opacity 0.2s, transform 0.2s;
+    pointer-events:none; z-index:9999; white-space:nowrap;
+  "></div>
+</body>
+</html>
