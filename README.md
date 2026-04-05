@@ -26,8 +26,9 @@ StreamFusion pulls all your chats into one place — live, side by side, with a 
 ### Unified Combined Chat
 All platforms feed into a single chronological stream. Every message tagged by platform so you never lose context.
 
-### Kick Emotes
-Kick emotes render as images inline — not raw `[emote:id:name]` text like every other third-party tool.
+### Native Emote Rendering
+- **Twitch** — emotes rendered from IRC tag position data via Twitch's CDN
+- **Kick** — emotes rendered inline from `[emote:id:name]` syntax — not raw text like every other third-party tool
 
 ### OBS / Streamlabs Overlay
 One click opens a chat overlay window. Copy the browser source URL directly from the overlay — with or without transparent background — and paste it into OBS or Streamlabs. No configuration needed.
@@ -45,7 +46,7 @@ Streams are saved to `localStorage` — your layout survives page refreshes auto
 ## Getting Started
 
 ```bash
-git clone https://github.com/shivamsinghss/StreamFusion.git
+git clone https://github.com/yourname/streamfusion.git
 cd streamfusion
 open index.html        # macOS
 # or just drag index.html into your browser
@@ -78,7 +79,7 @@ That's it. No `npm install`. No server. No setup.
 | Platform | Chat Method         | Emotes | Auth Required |
 |----------|---------------------|--------|---------------|
 | YouTube  | Embedded iframe     | —      | No            |
-| Twitch   | IRC WebSocket       | —      | No            |
+| Twitch   | IRC WebSocket       | Yes    | No            |
 | Kick     | Pusher WebSocket    | Yes    | No            |
 
 ---
@@ -122,6 +123,7 @@ streamfusion/
 | No account required | ✅ | ❌ | ✅ | ❌ |
 | No install | ✅ | ❌ | ❌ | ❌ |
 | Kick native emotes | ✅ | ❌ | ❌ | ❌ |
+| Twitch native emotes | ✅ | ✅ | ✅ | ✅ |
 | Self-hostable | ✅ | ❌ | ✅ | ❌ |
 | Free | ✅ | Freemium | ✅ | Freemium |
 
