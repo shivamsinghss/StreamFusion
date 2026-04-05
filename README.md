@@ -45,7 +45,7 @@ Streams are saved to `localStorage` — your layout survives page refreshes auto
 ## Getting Started
 
 ```bash
-git clone https://github.com/yourname/streamfusion.git
+git clone https://github.com/shivamsinghss/StreamFusion.git
 cd streamfusion
 open index.html        # macOS
 # or just drag index.html into your browser
