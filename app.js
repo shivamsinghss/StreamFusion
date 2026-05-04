@@ -109,6 +109,25 @@ function loadState() {
   } catch {}
 }
 
+// ── Wake Lock — keep screen on while streams are active ──────
+let _wakeLock = null;
+
+async function acquireWakeLock() {
+  if (_wakeLock || !navigator.wakeLock) return;
+  try { _wakeLock = await navigator.wakeLock.request('screen'); }
+  catch {}
+}
+
+function releaseWakeLock() {
+  _wakeLock?.release();
+  _wakeLock = null;
+}
+
+// Re-acquire after tab becomes visible (browser auto-releases on hide)
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && streams.length > 0) acquireWakeLock();
+});
+
 // ── DOM ──────────────────────────────────────────────────────
 const grid           = document.getElementById('chat-grid');
 const emptyState     = document.getElementById('empty-state');
@@ -353,6 +372,133 @@ function disconnectKickChat(channel) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// ── YouTube Live Chat (InnerTube via local proxy) ────────────
+// Requests go to the local server.js proxy which forwards them to YouTube
+// and adds CORS headers. Run `node server.js` before opening the app.
+const YT_PROXY    = 'http://localhost:3001';
+const YT_KEY      = 'AIzaSyAO_FJ2SlqU8Q4STEHLGCilw_Y9_11qcW8';
+const YT_CLIENT   = { clientName: 'WEB', clientVersion: '2.20240101.00.00', hl: 'en', gl: 'US' };
+
+const ytChatState = new Map(); // videoId → { continuation, timer, active, seenIds }
+
+function ytRunsToText(runs) {
+  return (runs ?? []).map(r => {
+    if (r.text) return r.text;
+    if (r.emoji) return r.emoji.isCustomEmoji ? (r.emoji.shortcuts?.[0] ?? '') : (r.emoji.emojiId ?? '');
+    return '';
+  }).join('');
+}
+
+// Recursively find liveChatRenderer anywhere in the InnerTube response
+// and extract the first valid continuation token from it.
+function findYTContinuation(obj, depth = 0) {
+  if (!obj || typeof obj !== 'object' || depth > 20) return null;
+  if (Array.isArray(obj)) {
+    for (const item of obj) {
+      const r = findYTContinuation(item, depth + 1);
+      if (r) return r;
+    }
+    return null;
+  }
+  if (obj.liveChatRenderer) {
+    for (const c of obj.liveChatRenderer.continuations ?? []) {
+      const token = c.invalidationContinuationData?.continuation
+        ?? c.timedContinuationData?.continuation
+        ?? c.reloadContinuationData?.continuation;
+      if (token) return token;
+    }
+  }
+  for (const val of Object.values(obj)) {
+    const r = findYTContinuation(val, depth + 1);
+    if (r) return r;
+  }
+  return null;
+}
+
+async function connectYouTubeChat(videoId) {
+  if (ytChatState.has(videoId)) return;
+  const state = { continuation: null, timer: null, active: true, seenIds: new Set() };
+  ytChatState.set(videoId, state);
+  try {
+    const r = await fetch(`${YT_PROXY}/youtubei/v1/next?key=${YT_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context: { client: YT_CLIENT }, videoId }),
+    });
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    const d = await r.json();
+    if (!ytChatState.has(videoId)) return;
+
+    const continuation = findYTContinuation(d);
+    if (!continuation) {
+      addCombinedMessage('youtube', '', `YouTube (${videoId}) — no active live chat found`, true);
+      ytChatState.delete(videoId);
+      return;
+    }
+    state.continuation = continuation;
+    pollYouTubeChat(videoId);
+  } catch (e) {
+    if (!ytChatState.has(videoId)) return;
+    ytChatState.delete(videoId);
+    const msg = e.name === 'TypeError'
+      ? 'YouTube proxy not running — open a terminal and run: node server.js'
+      : `YouTube — failed to connect (${e.message})`;
+    addCombinedMessage('youtube', '', msg, true);
+  }
+}
+
+async function pollYouTubeChat(videoId) {
+  const state = ytChatState.get(videoId);
+  if (!state || !state.active) return;
+  try {
+    const r = await fetch(`${YT_PROXY}/youtubei/v1/live_chat/get_live_chat?key=${YT_KEY}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ context: { client: YT_CLIENT }, continuation: state.continuation }),
+    });
+    if (!ytChatState.has(videoId)) return;
+    const d = await r.json();
+    const lc = d?.continuationContents?.liveChatContinuation;
+    if (!lc) { state.timer = setTimeout(() => pollYouTubeChat(videoId), 5000); return; }
+
+    const nc = lc?.continuations?.[0];
+    const nextToken = nc?.invalidationContinuationData?.continuation
+      ?? nc?.timedContinuationData?.continuation;
+    if (nextToken) state.continuation = nextToken;
+
+    const interval = Math.max(
+      nc?.timedContinuationData?.timeoutMs ?? nc?.invalidationContinuationData?.timeoutMs ?? 5000,
+      2000
+    );
+
+    for (const action of lc?.actions ?? []) {
+      const item = action?.addChatItemAction?.item;
+      if (!item) continue;
+      const msg = item.liveChatTextMessageRenderer ?? item.liveChatPaidMessageRenderer;
+      if (!msg || state.seenIds.has(msg.id)) continue;
+      state.seenIds.add(msg.id);
+      const author = msg?.authorName?.simpleText;
+      const text = ytRunsToText(msg?.message?.runs);
+      if (author && text) addCombinedMessage('youtube', author, text, false);
+    }
+
+    if (state.seenIds.size > 1000) state.seenIds = new Set([...state.seenIds].slice(-500));
+    state.timer = setTimeout(() => pollYouTubeChat(videoId), interval);
+  } catch {
+    if (ytChatState.has(videoId))
+      ytChatState.get(videoId).timer = setTimeout(() => pollYouTubeChat(videoId), 10000);
+  }
+}
+
+function disconnectYouTubeChat(videoId) {
+  const state = ytChatState.get(videoId);
+  if (state) {
+    state.active = false;
+    clearTimeout(state.timer);
+    ytChatState.delete(videoId);
+  }
+}
+
 // ── Chat Management ──────────────────────────────────────────
 function addChat(platform, id, persist = true) {
   const key = streamKey(platform, id);
@@ -378,6 +524,7 @@ function addChat(platform, id, persist = true) {
       loading="lazy"
       referrerpolicy="no-referrer-when-downgrade"
       allow="autoplay; clipboard-write"
+      ${platform === 'youtube' ? 'sandbox="allow-scripts allow-same-origin allow-forms allow-popups"' : ''}
     ></iframe>`;
 
   card.querySelector('.card-remove').addEventListener('click', () => removeChat(card));
@@ -388,11 +535,12 @@ function addChat(platform, id, persist = true) {
     joinTwitchChannel(id);
   } else if (platform === 'kick') {
     connectKickChat(id);
-  } else {
-    addCombinedMessage(platform, '', `${meta.label} (${id}) chat opened`, true);
+  } else if (platform === 'youtube') {
+    connectYouTubeChat(id);
   }
 
   if (persist) saveState();
+  acquireWakeLock();
   updateEmptyState();
 }
 
@@ -402,8 +550,10 @@ function removeChat(cardEl) {
   streams = streams.filter(s => s.key !== key);
   if (stream?.platform === 'twitch') leaveTwitchChannel(stream.id);
   if (stream?.platform === 'kick')   disconnectKickChat(stream.id);
+  if (stream?.platform === 'youtube') disconnectYouTubeChat(stream.id);
   cardEl.remove();
   saveState();
+  if (streams.length === 0) releaseWakeLock();
   updateEmptyState();
 }
 
@@ -541,7 +691,6 @@ document.getElementById('btn-overlay').addEventListener('click', () => {
 });
 
 document.getElementById('btn-clear-all').addEventListener('click', () => {
-  // Remove all stream cards from the DOM and disconnect everything
   [...grid.querySelectorAll('.chat-card')].forEach(card => removeChat(card));
 });
 

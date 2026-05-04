@@ -402,6 +402,49 @@ body {
 .input-hint.valid   { color: #5cba5c; }
 .input-hint.invalid { color: #e06060; }
 
+.settings-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.settings-why {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+}
+
+.settings-steps {
+  font-size: 0.82rem;
+  color: var(--color-text);
+  line-height: 1.6;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.settings-label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.settings-hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}
+
+.settings-link {
+  color: var(--color-primary);
+  text-decoration: none;
+}
+.settings-link:hover { text-decoration: underline; }
+
 /* ============================================================
    Platform Picker (modal step 1)
    ============================================================ */
