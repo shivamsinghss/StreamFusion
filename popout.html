@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>StreamFusion — Combined Chat</title>
+  <style>
+    :root {
+      --bg: #0e0e0e;
+      --surface: #1a1a1a;
+      --surface-2: #242424;
+      --border: #2e2e2e;
+      --text: #e8e8e8;
+      --muted: #888;
+      --primary: #7c6af7;
+      --youtube: #FF0000;
+      --twitch: #9146FF;
+      --kick: #53FC18;
+    }
+
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    .header {
+      flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 14px;
+      background: var(--surface);
+      border-bottom: 2px solid var(--primary);
+    }
+
+    .header-logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .header-title {
+      font-size: 0.9rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      background: linear-gradient(90deg, #7c6af7, #9146FF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .platform-badges {
+      display: flex;
+      gap: 5px;
+      align-items: center;
+    }
+
+    .platform-badge {
+      font-size: 0.62rem;
+      font-weight: 800;
+      padding: 2px 6px;
+      border-radius: 3px;
+      text-transform: lowercase;
+      letter-spacing: 0.03em;
+    }
+
+    .platform-badge.youtube { background: rgba(255,0,0,0.18);   color: #ff7070; }
+    .platform-badge.twitch  { background: rgba(145,70,255,0.2); color: #b39ddb; }
+    .platform-badge.kick    { background: rgba(83,252,24,0.15); color: #69f542; }
+
+    .status-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #444;
+      flex-shrink: 0;
+      transition: background 0.3s;
+      margin-left: auto;
+    }
+
+    .status-dot.live { background: var(--kick); box-shadow: 0 0 6px rgba(83,252,24,0.5); }
+
+    .status-label {
+      font-size: 0.7rem;
+      color: var(--muted);
+      margin-left: 5px;
+    }
+
+    /* ── Messages ── */
+    #messages {
+      flex: 1;
+      overflow-y: auto;
+      padding: 6px 8px;
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+      min-height: 0;
+    }
+
+    #messages::-webkit-scrollbar { width: 4px; }
+    #messages::-webkit-scrollbar-track { background: transparent; }
+    #messages::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+    .msg {
+      display: flex;
+      align-items: baseline;
+      gap: 4px;
+      padding: 3px 5px;
+      border-radius: 3px;
+      font-size: 0.82rem;
+      line-height: 1.45;
+      word-break: break-word;
+      flex-wrap: wrap;
+      animation: slideIn 0.25s cubic-bezier(0.22,0.61,0.36,1) both;
+    }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateX(-8px); }
+      to   { opacity: 1; transform: translateX(0); }
+    }
+
+    .msg:hover { background: rgba(255,255,255,0.04); }
+
+    .msg-platform {
+      font-size: 0.65rem;
+      font-weight: 700;
+      padding: 1px 5px;
+      border-radius: 3px;
+      text-transform: lowercase;
+      flex-shrink: 0;
+      letter-spacing: 0.02em;
+    }
+
+    .msg-platform.youtube { background: rgba(255,0,0,0.18);   color: #ff7070; }
+    .msg-platform.twitch  { background: rgba(145,70,255,0.2); color: #b39ddb; }
+    .msg-platform.kick    { background: rgba(83,252,24,0.15); color: #69f542; }
+
+    .msg-author { font-weight: 700; flex-shrink: 0; }
+    .msg-sep    { color: var(--muted); flex-shrink: 0; font-size: 0.72rem; }
+    .msg-text   { color: #ccc; flex: 1; }
+
+    .system-msg {
+      justify-content: center;
+      padding: 4px 8px;
+    }
+
+    .msg-system-text {
+      font-size: 0.72rem;
+      color: var(--muted);
+      font-style: italic;
+      opacity: 0.75;
+    }
+
+    .kick-emote, .twitch-emote {
+      height: 1.5em;
+      width: auto;
+      vertical-align: middle;
+      display: inline;
+    }
+
+    /* ── Waiting state ── */
+    #waiting {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      color: var(--muted);
+      font-size: 0.85rem;
+      text-align: center;
+      padding: 32px;
+    }
+
+    #waiting svg { opacity: 0.3; }
+
+    #waiting p { max-width: 280px; line-height: 1.6; opacity: 0.7; }
+  </style>
+</head>
+<body>
+
+  <div class="header">
+    <div class="header-logo">
+      <svg width="20" height="20" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+        <rect width="28" height="28" rx="6" fill="#1a1a1a"/>
+        <rect x="3" y="3" width="9" height="9" rx="2" fill="#FF0000"/>
+        <rect x="16" y="3" width="9" height="9" rx="2" fill="#9146FF"/>
+        <rect x="3" y="16" width="9" height="9" rx="2" fill="#53FC18"/>
+        <rect x="16" y="16" width="9" height="9" rx="2" fill="#444"/>
+      </svg>
+      <span class="header-title">Combined Chat</span>
+    </div>
+    <div class="platform-badges">
+      <span class="platform-badge youtube">yt</span>
+      <span class="platform-badge twitch">twitch</span>
+      <span class="platform-badge kick">kick</span>
+    </div>
+    <div id="status-dot" class="status-dot" title="Waiting for StreamFusion"></div>
+    <span class="status-label" id="status-label">waiting…</span>
+  </div>
+
+  <div id="waiting">
+    <svg width="40" height="40" viewBox="0 0 28 28" fill="none" aria-hidden="true">
+      <rect width="28" height="28" rx="6" fill="#1a1a1a"/>
+      <rect x="3" y="3" width="9" height="9" rx="2" fill="#FF0000" opacity="0.5"/>
+      <rect x="16" y="3" width="9" height="9" rx="2" fill="#9146FF" opacity="0.5"/>
+      <rect x="3" y="16" width="9" height="9" rx="2" fill="#53FC18" opacity="0.5"/>
+      <rect x="16" y="16" width="9" height="9" rx="2" fill="#444" opacity="0.5"/>
+    </svg>
+    <p>Waiting for StreamFusion…<br>Keep the main StreamFusion window open with active streams.</p>
+  </div>
+
+  <div id="messages" hidden></div>
+
+  <!-- 1×1 canvas used by the rAF keep-alive loop -->
+  <canvas id="_ka" width="1" height="1"
+    style="position:fixed;top:-2px;left:-2px;width:1px;height:1px;pointer-events:none"
+    aria-hidden="true"></canvas>
+
+<script>
+'use strict';
+
+// ── Wake Lock — keep screen on ────────────────────────────────
+let _wakeLock = null;
+
+async function acquireWakeLock() {
+  if (_wakeLock || !navigator.wakeLock) return;
+  try { _wakeLock = await navigator.wakeLock.request('screen'); } catch {}
+}
+
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') acquireWakeLock();
+});
+
+acquireWakeLock();
+
+// ── DOM refs ──────────────────────────────────────────────────
+const msgsEl      = document.getElementById('messages');
+const waitingEl   = document.getElementById('waiting');
+const statusDot   = document.getElementById('status-dot');
+const statusLabel = document.getElementById('status-label');
+
+let hasMessages = false;
+
+function showLive() {
+  if (!hasMessages) {
+    hasMessages = true;
+    waitingEl.remove();
+    msgsEl.removeAttribute('hidden');
+  }
+  statusDot.classList.add('live');
+  statusLabel.textContent = 'live';
+}
+
+// ── Helpers ───────────────────────────────────────────────────
+function esc(s) {
+  return String(s)
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function userColor(name) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (Math.imul(31, h) + name.charCodeAt(i)) | 0;
+  return `hsl(${Math.abs(h) % 360},65%,72%)`;
+}
+
+function addMessage({ platform, username, text, isSystem, textHTML }) {
+  showLive();
+
+  const el = document.createElement('div');
+  if (isSystem) {
+    el.className = 'msg system-msg';
+    el.innerHTML = `<span class="msg-system-text">${esc(text)}</span>`;
+  } else {
+    el.className = 'msg';
+    el.innerHTML =
+      `<span class="msg-platform ${esc(platform)}">${esc(platform)}</span>` +
+      `<span class="msg-author" style="color:${userColor(username)}">${esc(username)}</span>` +
+      `<span class="msg-sep">→</span>` +
+      `<span class="msg-text">${textHTML ?? esc(text)}</span>`;
+  }
+  msgsEl.appendChild(el);
+  while (msgsEl.children.length > 1000)
+    msgsEl.removeChild(msgsEl.firstChild);
+  msgsEl.scrollTo({ top: msgsEl.scrollHeight, behavior: 'smooth' });
+}
+
+// ── Keep-alive — prevent Chrome from freezing / discarding this window ───
+// Strategy 1: Web Locks — Chrome will not freeze a tab holding a lock.
+if (navigator.locks) {
+  navigator.locks.request('sf-popout-alive', { mode: 'shared' }, () => new Promise(() => {}));
+}
+
+// Strategy 2: Web Worker — worker timers are not throttled like the main thread.
+try {
+  const _worker = new Worker(URL.createObjectURL(
+    new Blob(['setInterval(()=>postMessage(1),8000)'], { type: 'application/javascript' })
+  ));
+  _worker.onmessage = () => {};
+} catch {}
+
+// Strategy 3: Canvas rAF loop — continuous rendering signals the window is active.
+// Chrome will not discard or freeze windows with an active animation frame loop.
+(function() {
+  const c = document.getElementById('_ka');
+  const ctx2d = c.getContext('2d');
+  let v = 0;
+  (function frame() {
+    ctx2d.fillStyle = v ? '#000001' : '#000000';
+    ctx2d.fillRect(0, 0, 1, 1);
+    v ^= 1;
+    requestAnimationFrame(frame);
+  })();
+})();
+
+// ── BroadcastChannel ──────────────────────────────────────────
+let channel = new BroadcastChannel('streamfusion-chat');
+
+function attachChannel() {
+  channel.addEventListener('message', e => {
+    if (e.data?.type === 'heartbeat') return;
+    addMessage(e.data);
+  });
+}
+
+attachChannel();
+
+// Recreate channel if the page was frozen and has now resumed
+document.addEventListener('resume', () => {
+  channel.close();
+  channel = new BroadcastChannel('streamfusion-chat');
+  attachChannel();
+  acquireWakeLock();
+});
+</script>
+</body>
+</html>

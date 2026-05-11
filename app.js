@@ -92,6 +92,13 @@ let streams = [];
 
 function streamKey(p, id) { return `${p}:${id}`; }
 
+function streamTitleElId(key) { return 'st-' + key.replace(/[^a-z0-9]/gi, '_'); }
+
+function setStreamTitle(key, title) {
+  const el = document.getElementById(streamTitleElId(key));
+  if (el && title) el.textContent = title;
+}
+
 function saveState() {
   try {
     localStorage.setItem(STORAGE_KEY,
@@ -133,6 +140,9 @@ const grid           = document.getElementById('chat-grid');
 const emptyState     = document.getElementById('empty-state');
 const appBody        = document.getElementById('app-body');
 const combinedMsgsEl = document.getElementById('combined-messages');
+
+// ── Popout broadcast channel ─────────────────────────────────
+const popoutChannel = new BroadcastChannel('streamfusion-chat');
 
 function updateEmptyState() {
   if (streams.length === 0) {
@@ -189,6 +199,10 @@ function renderKickText(text) {
   }).join('');
 }
 
+function clearCombinedMessages() {
+  combinedMsgsEl.innerHTML = '';
+}
+
 function addCombinedMessage(platform, username, text, isSystem, textHTML = null) {
   if (!combinedMsgsEl) return;
   const ph = combinedMsgsEl.querySelector('.combined-placeholder');
@@ -209,7 +223,8 @@ function addCombinedMessage(platform, username, text, isSystem, textHTML = null)
   combinedMsgsEl.appendChild(el);
   while (combinedMsgsEl.children.length > 500)
     combinedMsgsEl.removeChild(combinedMsgsEl.firstChild);
-  combinedMsgsEl.scrollTop = combinedMsgsEl.scrollHeight;
+  combinedMsgsEl.scrollTo({ top: combinedMsgsEl.scrollHeight, behavior: 'smooth' });
+  popoutChannel.postMessage({ platform, username, text, isSystem, textHTML });
 }
 
 // ── Twitch IRC ───────────────────────────────────────────────
@@ -267,6 +282,26 @@ function joinTwitchChannel(ch) {
     twitchConnect();
 }
 
+async function fetchTwitchTitle(channel, key) {
+  try {
+    const r = await fetch('https://gql.twitch.tv/gql', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Client-ID': 'kimne78kx3ncx6brgo4mv6wki5h1ko',
+      },
+      body: JSON.stringify({
+        query: 'query($login:String!){user(login:$login){displayName stream{title}}}',
+        variables: { login: channel },
+      }),
+    });
+    if (!r.ok) return;
+    const d = await r.json();
+    const title = d?.data?.user?.stream?.title || d?.data?.user?.displayName;
+    if (title) setStreamTitle(key, title);
+  } catch {}
+}
+
 function leaveTwitchChannel(ch) {
   twitchIRC.channels.delete(ch);
   if (twitchIRC.ws && twitchIRC.ws.readyState === WebSocket.OPEN)
@@ -304,7 +339,11 @@ async function connectKickChat(channel) {
         if (!r.ok) break;
         const d = await r.json();
         chatroomId = d.chatroom?.id ?? d.id ?? null;
-        if (chatroomId) break;
+        if (chatroomId) {
+          const streamTitle = d.livestream?.session_title || d.user?.username || d.slug || null;
+          if (streamTitle) setStreamTitle(streamKey('kick', channel), streamTitle);
+          break;
+        }
       } catch { break; }
     }
     if (chatroomId) break;
@@ -415,6 +454,18 @@ function findYTContinuation(obj, depth = 0) {
   return null;
 }
 
+function findYTTitle(obj, depth = 0) {
+  if (!obj || typeof obj !== 'object' || depth > 15) return null;
+  if (obj.videoPrimaryInfoRenderer?.title?.runs?.[0]?.text)
+    return obj.videoPrimaryInfoRenderer.title.runs[0].text;
+  if (obj.videoDetails?.title) return obj.videoDetails.title;
+  for (const val of Object.values(obj)) {
+    const r = findYTTitle(val, depth + 1);
+    if (r) return r;
+  }
+  return null;
+}
+
 async function connectYouTubeChat(videoId) {
   if (ytChatState.has(videoId)) return;
   const state = { continuation: null, timer: null, active: true, seenIds: new Set() };
@@ -430,6 +481,8 @@ async function connectYouTubeChat(videoId) {
     if (!ytChatState.has(videoId)) return;
 
     const continuation = findYTContinuation(d);
+    const ytTitle = findYTTitle(d);
+    if (ytTitle) setStreamTitle(streamKey('youtube', videoId), ytTitle);
     if (!continuation) {
       addCombinedMessage('youtube', '', `YouTube (${videoId}) — no active live chat found`, true);
       ytChatState.delete(videoId);
@@ -507,14 +560,18 @@ function addChat(platform, id, persist = true) {
   const meta = PLATFORM_META[platform];
   if (!meta) return;
 
+  clearCombinedMessages();
+
   const card = document.createElement('div');
   card.className = 'chat-card';
   card.dataset.key = key;
   card.innerHTML = `
     <div class="card-header ${meta.colorClass}">
       <span class="card-platform-icon">${meta.icon}</span>
-      <span class="card-title">${meta.label}</span>
-      <span class="card-id" title="${escapeAttr(id)}">${escapeHTML(id)}</span>
+      <div class="card-info">
+        <span class="card-title">${meta.label}</span>
+        <span class="card-stream-title" id="${escapeAttr(streamTitleElId(key))}">${escapeHTML(id)}</span>
+      </div>
       <button class="card-remove" aria-label="Remove ${meta.label} chat">×</button>
     </div>
     <iframe
@@ -533,6 +590,7 @@ function addChat(platform, id, persist = true) {
 
   if (platform === 'twitch') {
     joinTwitchChannel(id);
+    fetchTwitchTitle(id, key);
   } else if (platform === 'kick') {
     connectKickChat(id);
   } else if (platform === 'youtube') {
@@ -689,6 +747,18 @@ document.getElementById('btn-overlay').addEventListener('click', () => {
     .then(() => showToast('Overlay opened & URL copied — paste into OBS Browser Source!'))
     .catch(() => showToast('Overlay opened — copy the URL from the new window for OBS.'));
 });
+
+document.getElementById('btn-popout-chat').addEventListener('click', () => {
+  if (streams.length === 0) {
+    showToast('Add at least one stream first.');
+    return;
+  }
+  const popoutURL = new URL('popout.html', location.href).toString();
+  window.open(popoutURL, 'sf-popout', 'width=380,height=700,resizable=yes');
+});
+
+// Heartbeat — keeps the popout tab alive in Chrome (prevents freeze due to inactivity)
+setInterval(() => popoutChannel.postMessage({ type: 'heartbeat' }), 20000);
 
 document.getElementById('btn-clear-all').addEventListener('click', () => {
   [...grid.querySelectorAll('.chat-card')].forEach(card => removeChat(card));

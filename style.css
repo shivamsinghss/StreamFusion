@@ -226,22 +226,28 @@ body {
   color: var(--platform-color, #888);
 }
 
-.card-title {
+.card-info {
   flex: 1;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: var(--color-text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
+  min-width: 0;
 }
 
-.card-id {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  max-width: 100px;
+.card-title {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--platform-color, var(--color-text-muted));
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+
+.card-stream-title {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-text);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -578,6 +584,29 @@ body {
   flex-shrink: 0;
 }
 
+.btn-popout {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  background: transparent;
+  color: var(--color-text-muted);
+  border: none;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity var(--transition), background var(--transition), color var(--transition);
+  flex-shrink: 0;
+}
+
+.btn-popout:hover {
+  opacity: 1;
+  background: rgba(124, 106, 247, 0.15);
+  color: var(--color-primary);
+}
+
 .combined-messages {
   flex: 1;
   overflow-y: auto;
@@ -606,6 +635,13 @@ body {
   border-radius: 3px;
   word-break: break-word;
   flex-wrap: wrap;
+  animation: msgSlideIn 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  will-change: transform, opacity;
+}
+
+@keyframes msgSlideIn {
+  from { opacity: 0; transform: translateX(-8px); }
+  to   { opacity: 1; transform: translateX(0); }
 }
 
 .combined-message:hover {

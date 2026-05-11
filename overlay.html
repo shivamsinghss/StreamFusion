@@ -7,204 +7,512 @@
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
 
-    html, body {
-      width: 100%; height: 100%;
-      background: #0e0e0e;
+    html, body { height: 100%; }
+
+    body {
       font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
-      overflow: hidden;
+      background: #0d0d0d;
+      color: #e0e0e0;
     }
 
-    /* Transparent mode for OBS overlay: add ?bg=transparent to URL */
-    body.transparent { background: transparent; }
+    /* ═══════════════════════════════════════════
+       OBS MODE  —  messages stack at bottom
+    ═══════════════════════════════════════════ */
+    body.obs-mode            { overflow: hidden; }
+    body.obs-mode.transparent { background: transparent; }
+    body.obs-mode #config-panel { display: none; }
 
-    #messages {
-      position: absolute;
+    body.obs-mode #messages {
+      position: fixed;
       bottom: 0; left: 0; right: 0;
       display: flex;
       flex-direction: column;
-      gap: 5px;
-      padding: 12px;
+      gap: 8px;
+      padding: 14px;
       max-height: 100vh;
       overflow: hidden;
     }
 
-    .msg {
-      display: flex;
-      align-items: baseline;
-      gap: 6px;
-      flex-wrap: wrap;
-      background: rgba(0, 0, 0, 0.55);
-      border-radius: 6px;
-      padding: 5px 9px;
-      line-height: 1.45;
-      animation: appear 0.2s ease;
-    }
-
-    @keyframes appear {
-      from { opacity: 0; transform: translateY(5px); }
-      to   { opacity: 1; transform: translateY(0); }
-    }
-
-    .badge {
-      font-size: 0.6rem;
-      font-weight: 800;
-      padding: 1px 5px;
-      border-radius: 3px;
-      text-transform: lowercase;
-      letter-spacing: 0.03em;
-      flex-shrink: 0;
-    }
-    .badge.twitch  { background: rgba(145, 70, 255, 0.45); color: #d4bcff; }
-    .badge.kick    { background: rgba(83,  252,  24, 0.3);  color: #88ff55; }
-    .badge.youtube { background: rgba(255,  0,    0, 0.35); color: #ffaaaa; }
-
-    .username { font-size: 0.88rem; font-weight: 700; flex-shrink: 0; }
-    .sep      { font-size: 0.85rem; color: rgba(255,255,255,0.4); flex-shrink: 0; }
-    .text     { font-size: 0.88rem; color: rgba(255,255,255,0.92); word-break: break-word; }
-
-    /* Copy toolbar — hidden inside OBS/Streamlabs */
-    #copy-bar {
-      position: fixed;
-      top: 0; left: 0; right: 0;
-      z-index: 100;
+    /* ═══════════════════════════════════════════
+       BROWSER MODE  —  config panel fills page
+    ═══════════════════════════════════════════ */
+    body.browser-mode {
+      overflow-y: auto;
       display: flex;
       flex-direction: column;
       align-items: center;
+    }
+
+    body.browser-mode #messages { display: none; }
+
+    /* ═══════════════════════════════════════════
+       CONFIG PANEL
+    ═══════════════════════════════════════════ */
+    #config-panel {
+      width: 100%;
+      max-width: 520px;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+      padding: 0 0 40px;
+    }
+
+    /* Header bar */
+    .cfg-header {
+      display: flex;
+      align-items: center;
       gap: 10px;
-      padding: 14px 16px;
-      background: rgba(10,10,10,0.95);
-      border-bottom: 1px solid #2a2a2a;
+      padding: 20px 24px 18px;
+      border-bottom: 1px solid #1a1a1a;
     }
-    #copy-bar.hidden { display: none; }
-    #copy-bar-label {
-      font-size: 0.7rem;
-      font-weight: 600;
-      letter-spacing: 0.08em;
+
+    .cfg-logo-mark {
+      flex-shrink: 0;
+    }
+
+    .cfg-title {
+      font-size: 0.95rem;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      background: linear-gradient(90deg, #7c6af7, #9146FF);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .cfg-subtitle {
+      font-size: 0.72rem;
+      color: #444;
+      margin-top: 1px;
+    }
+
+    /* Section wrapper */
+    .cfg-section {
+      padding: 20px 24px 0;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .cfg-label {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
       text-transform: uppercase;
-      color: #555;
+      color: #383838;
     }
-    #copy-bar-grid {
+
+    /* ═══════════════════════════════════════════
+       ANIMATION PICKER  —  2 per row
+    ═══════════════════════════════════════════ */
+    #layout-picker {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 8px;
-      width: 100%;
-      max-width: 420px;
+      gap: 10px;
     }
+
+    /* Lone last card (odd count): half-width, left-aligned */
+    #layout-picker .layout-card:last-child:nth-child(odd) {
+      grid-column: 1 / 2;
+    }
+
+    .layout-card {
+      border: 1.5px solid #1a1a1a;
+      border-radius: 10px;
+      background: #0e0e0e;
+      cursor: pointer;
+      overflow: hidden;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .layout-card:hover             { border-color: #303030; background: #121212; }
+    .layout-card.selected          { border-color: #7c6af7; background: rgba(124,106,247,0.07); }
+    .layout-card.selected .lc-name { color: #a89cff; }
+    .layout-card.selected .lc-desc { color: rgba(124,106,247,0.55); }
+
+    /* Demo viewport */
+    .lc-demo {
+      height: 66px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #080808;
+      border-bottom: 1px solid #161616;
+      overflow: hidden;
+    }
+
+    /* Fake chat message */
+    .lc-bubble {
+      display: flex;
+      align-items: center;
+      gap: 5px;
+      background: rgba(255,255,255,0.07);
+      border-radius: 5px;
+      padding: 5px 10px;
+      white-space: nowrap;
+      will-change: transform, opacity;
+    }
+
+    .lc-dot { width: 6px; height: 6px; border-radius: 50%; flex-shrink: 0; }
+    .lc-dot.t { background: #9146FF; }
+    .lc-dot.k { background: #53FC18; }
+    .lc-dot.y { background: #FF0000; }
+    .lc-dot.p { background: #7c6af7; }
+    .lc-dot.o { background: #f7a96a; }
+
+    .lc-bn   { font-size: 0.64rem; font-weight: 700; color: rgba(255,255,255,0.8); }
+    .lc-bs   { font-size: 0.6rem; color: rgba(255,255,255,0.28); margin: 0 1px; }
+    .lc-bt   { font-size: 0.61rem; color: rgba(255,255,255,0.45); }
+
+    /* Card text */
+    .lc-info {
+      padding: 10px 12px 13px;
+      display: flex;
+      flex-direction: column;
+      gap: 3px;
+    }
+
+    .lc-name {
+      font-size: 0.82rem;
+      font-weight: 700;
+      color: #c0c0c0;
+    }
+
+    .lc-desc {
+      font-size: 0.67rem;
+      color: #404040;
+      line-height: 1.35;
+    }
+
+    /* ═══════════════════════════════════════════
+       COPY BUTTONS
+    ═══════════════════════════════════════════ */
+    #copy-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
     .copy-btn {
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      gap: 6px;
-      padding: 12px 10px;
-      border: 1px solid #333;
-      border-radius: 8px;
-      background: #141414;
-      color: #bbb;
-      font-size: 0.72rem;
+      gap: 7px;
+      padding: 14px 10px;
+      border: 1.5px solid #1a1a1a;
+      border-radius: 10px;
+      background: #0e0e0e;
+      color: #666;
+      font-size: 0.75rem;
       font-weight: 500;
       cursor: pointer;
       transition: background 0.15s, border-color 0.15s, color 0.15s;
       text-align: center;
       line-height: 1.3;
     }
-    .copy-btn:hover { background: #1f1f1f; border-color: #555; color: #eee; }
+
+    .copy-btn:hover  { background: #141414; border-color: #404040; color: #e0e0e0; }
     .copy-btn.copied { border-color: #53FC18; color: #53FC18; background: rgba(83,252,24,0.06); }
-    .copy-btn svg { opacity: 0.6; }
+    .copy-btn svg    { opacity: 0.4; transition: opacity 0.15s; }
     .copy-btn:hover svg, .copy-btn.copied svg { opacity: 1; }
 
-    /* No-streams notice (shown when URL has no params) */
+    /* ═══════════════════════════════════════════
+       OBS OVERLAY MESSAGES
+    ═══════════════════════════════════════════ */
+    .msg {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      flex-wrap: wrap;
+      background: rgba(0,0,0,0.6);
+      border-radius: 8px;
+      padding: 8px 14px;
+      line-height: 1.5;
+      will-change: transform, opacity;
+    }
+
+    .anim-slide { animation: kf-slide 0.45s cubic-bezier(0.22,0.61,0.36,1) both; }
+    @keyframes kf-slide {
+      from { opacity:0; transform:translateY(28px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    .anim-pop { animation: kf-pop 0.5s cubic-bezier(0.34,1.56,0.64,1) both; }
+    @keyframes kf-pop {
+      from { opacity:0; transform:scale(0.3);  }
+      to   { opacity:1; transform:scale(1.05); }
+    }
+
+    .anim-fade { animation: kf-fade 0.55s ease both; }
+    @keyframes kf-fade {
+      from { opacity:0; }
+      to   { opacity:1; }
+    }
+
+    .anim-glide { animation: kf-glide 0.45s cubic-bezier(0.22,0.61,0.36,1) both; }
+    @keyframes kf-glide {
+      from { opacity:0; transform:translateX(-40px); }
+      to   { opacity:1; transform:translateX(0); }
+    }
+
+    .anim-drop { animation: kf-drop 0.45s cubic-bezier(0.22,0.61,0.36,1) both; }
+    @keyframes kf-drop {
+      from { opacity:0; transform:translateY(-28px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+
+    .badge { font-size:0.72rem; font-weight:800; padding:2px 8px; border-radius:3px; text-transform:lowercase; letter-spacing:0.03em; flex-shrink:0; }
+    .badge.twitch  { background:rgba(145,70,255,0.45); color:#d4bcff; }
+    .badge.kick    { background:rgba(83,252,24,0.3);   color:#88ff55; }
+    .badge.youtube { background:rgba(255,0,0,0.35);    color:#ffaaaa; }
+    .username { font-size:1.05rem; font-weight:700; flex-shrink:0; }
+    .sep      { font-size:1.0rem; color:rgba(255,255,255,0.4); flex-shrink:0; }
+    .text     { font-size:1.0rem; color:rgba(255,255,255,0.92); word-break:break-word; }
+
+    /* ═══════════════════════════════════════════
+       NO-STREAMS NOTICE
+    ═══════════════════════════════════════════ */
     #notice {
-      position: absolute;
-      inset: 0;
+      padding: 20px 24px 0;
       display: flex;
       flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      gap: 12px;
-      color: #888;
-      font-size: 0.85rem;
-      text-align: center;
-      padding: 24px;
+      gap: 8px;
     }
+
     #notice.hidden { display: none; }
-    #notice code {
-      background: #1a1a1a;
-      border: 1px solid #333;
+
+    .notice-box {
+      background: #0e0e0e;
+      border: 1px solid #1a1a1a;
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .notice-title {
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #555;
+    }
+
+    .notice-text {
+      font-size: 0.72rem;
+      color: #383838;
+      line-height: 1.5;
+    }
+
+    .notice-code {
+      display: inline-block;
+      background: #131313;
+      border: 1px solid #252525;
       border-radius: 4px;
       padding: 3px 8px;
-      font-size: 0.78rem;
-      color: #aaa;
+      font-size: 0.7rem;
+      color: #555;
+      font-family: monospace;
       word-break: break-all;
+      margin-top: 2px;
     }
   </style>
 </head>
 <body>
 
-<div id="copy-bar">
-  <div id="copy-bar-label">Browser Source URL</div>
-  <div id="copy-bar-grid">
-    <button class="copy-btn" id="btn-copy-url">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-      Copy for OBS / Streamlabs
-    </button>
-    <button class="copy-btn" id="btn-copy-transparent">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-      Copy with Transparent BG
-    </button>
+<!-- Config panel (browser only, hidden in OBS) -->
+<div id="config-panel">
+
+  <div class="cfg-header">
+    <svg class="cfg-logo-mark" width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="6" fill="#141414"/>
+      <rect x="3"  y="3"  width="9" height="9" rx="2" fill="#FF0000" opacity="0.8"/>
+      <rect x="16" y="3"  width="9" height="9" rx="2" fill="#9146FF" opacity="0.8"/>
+      <rect x="3"  y="16" width="9" height="9" rx="2" fill="#53FC18" opacity="0.8"/>
+      <rect x="16" y="16" width="9" height="9" rx="2" fill="#444"/>
+    </svg>
+    <div>
+      <div class="cfg-title">StreamFusion Overlay</div>
+      <div class="cfg-subtitle">Pick an animation, then copy the URL into OBS Browser Source</div>
+    </div>
   </div>
+
+  <div class="cfg-section">
+    <div class="cfg-label">Animation Style</div>
+    <div id="layout-picker"><!-- built by JS --></div>
+  </div>
+
+  <div id="notice">
+    <div class="cfg-label">Status</div>
+    <div class="notice-box">
+      <div class="notice-title">No channels in URL</div>
+      <div class="notice-text">
+        Add Twitch or Kick channels via the <strong>Open Overlay</strong> button in StreamFusion,
+        or append them manually:
+      </div>
+      <code class="notice-code">overlay.html?twitch=channel&amp;kick=channel</code>
+    </div>
+  </div>
+
+  <div class="cfg-section">
+    <div class="cfg-label">Copy URL for OBS / Streamlabs</div>
+    <div id="copy-grid">
+      <button class="copy-btn" id="btn-copy-url">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        Dark Background
+      </button>
+      <button class="copy-btn" id="btn-copy-transparent">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+          <rect x="9" y="9" width="13" height="13" rx="2"/>
+          <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+        </svg>
+        Transparent BG
+      </button>
+    </div>
+  </div>
+
 </div>
 
-<div id="notice">
-  <p>No channels configured.</p>
-  <p>Open this overlay from StreamFusion using the<br><strong>Open Overlay</strong> button, or add params manually:</p>
-  <code>overlay.html?twitch=channel&amp;kick=channel</code>
-</div>
-
+<!-- Messages — visible in OBS mode only -->
 <div id="messages"></div>
 
 <script>
 'use strict';
 
-// Hide copy bar when running inside OBS or Streamlabs
-const ua = navigator.userAgent;
-if (/OBS\/|StreamlabsOBS|slobs/i.test(ua)) {
-  document.getElementById('copy-bar').classList.add('hidden');
-}
+// ── Mode detection ────────────────────────────────────────────
+const ua    = navigator.userAgent;
+const isOBS = /OBS\/|StreamlabsOBS|slobs/i.test(ua);
+document.body.classList.add(isOBS ? 'obs-mode' : 'browser-mode');
 
+const params = new URLSearchParams(location.search);
+if (params.get('bg') === 'transparent') document.body.classList.add('transparent');
+
+const TWITCH = (params.get('twitch') || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+const KICK   = (params.get('kick')   || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
+const MAX    = Math.max(10, Math.min(200, parseInt(params.get('max') || '50', 10)));
+
+if (TWITCH.length || KICK.length) document.getElementById('notice').classList.add('hidden');
+
+let currentAnim = params.get('anim') || 'slide';
+
+// ── Layout definitions ────────────────────────────────────────
+const LAYOUTS = [
+  {
+    id:   'slide',
+    name: 'Slide Up',
+    desc: 'Glides up from below',
+    dot:  't',
+    kf:   [{ opacity:0, transform:'translateY(28px)' },
+           { opacity:1, transform:'translateY(0)' }],
+    opts: { duration:450, easing:'cubic-bezier(0.22,0.61,0.36,1)', fill:'both' },
+  },
+  {
+    id:   'pop',
+    name: 'Pop',
+    desc: 'Springs in with a bounce',
+    dot:  'k',
+    kf:   [{ opacity:0, transform:'scale(0.3)'  },
+           { opacity:1, transform:'scale(1.05)' },
+           { opacity:1, transform:'scale(1)'    }],
+    opts: { duration:500, easing:'cubic-bezier(0.34,1.56,0.64,1)', fill:'both' },
+  },
+  {
+    id:   'fade',
+    name: 'Fade',
+    desc: 'Soft opacity fade only',
+    dot:  'p',
+    kf:   [{ opacity:0 }, { opacity:1 }],
+    opts: { duration:550, easing:'ease', fill:'both' },
+  },
+  {
+    id:   'glide',
+    name: 'Glide',
+    desc: 'Slides in from the left',
+    dot:  'y',
+    kf:   [{ opacity:0, transform:'translateX(-40px)' },
+           { opacity:1, transform:'translateX(0)' }],
+    opts: { duration:450, easing:'cubic-bezier(0.22,0.61,0.36,1)', fill:'both' },
+  },
+  {
+    id:   'drop',
+    name: 'Drop',
+    desc: 'Falls in from above',
+    dot:  'o',
+    kf:   [{ opacity:0, transform:'translateY(-28px)' },
+           { opacity:1, transform:'translateY(0)' }],
+    opts: { duration:450, easing:'cubic-bezier(0.22,0.61,0.36,1)', fill:'both' },
+  },
+];
+
+// ── Build picker ──────────────────────────────────────────────
+const pickerEl = document.getElementById('layout-picker');
+
+LAYOUTS.forEach((layout, i) => {
+  const card = document.createElement('div');
+  card.className = 'layout-card' + (layout.id === currentAnim ? ' selected' : '');
+
+  const bubble = document.createElement('div');
+  bubble.className = 'lc-bubble';
+  bubble.innerHTML =
+    `<div class="lc-dot ${layout.dot}"></div>` +
+    `<span class="lc-bn">Username</span>` +
+    `<span class="lc-bs">:</span>` +
+    `<span class="lc-bt">Hello chat!</span>`;
+
+  const demo = document.createElement('div');
+  demo.className = 'lc-demo';
+  demo.appendChild(bubble);
+
+  card.innerHTML =
+    `<div class="lc-info">` +
+      `<div class="lc-name">${layout.name}</div>` +
+      `<div class="lc-desc">${layout.desc}</div>` +
+    `</div>`;
+  card.insertBefore(demo, card.firstChild);
+
+  pickerEl.appendChild(card);
+
+  function replay() {
+    bubble.getAnimations().forEach(a => a.cancel());
+    bubble.animate(layout.kf, layout.opts);
+  }
+
+  setTimeout(replay, i * 180 + 250);
+  card.addEventListener('mouseenter', replay);
+  card.addEventListener('click', () => {
+    pickerEl.querySelectorAll('.layout-card').forEach(c => c.classList.remove('selected'));
+    card.classList.add('selected');
+    currentAnim = layout.id;
+    replay();
+  });
+});
+
+// ── Copy URL ──────────────────────────────────────────────────
 function copyURL(transparent) {
   const url = new URL(location.href);
+  url.searchParams.set('anim', currentAnim);
   if (transparent) url.searchParams.set('bg', 'transparent');
-  else url.searchParams.delete('bg');
+  else             url.searchParams.delete('bg');
   navigator.clipboard.writeText(url.toString()).then(() => {
-    const btn = transparent
-      ? document.getElementById('btn-copy-transparent')
-      : document.getElementById('btn-copy-url');
-    btn.classList.add('copied');
+    const btn = document.getElementById(transparent ? 'btn-copy-transparent' : 'btn-copy-url');
     const orig = btn.innerHTML;
-    btn.innerHTML = btn.innerHTML.replace(/Copy.+/, 'Copied!');
+    btn.classList.add('copied');
+    btn.textContent = 'Copied!';
     setTimeout(() => { btn.classList.remove('copied'); btn.innerHTML = orig; }, 2000);
   });
 }
 
-document.getElementById('btn-copy-url').addEventListener('click', () => copyURL(false));
+document.getElementById('btn-copy-url').addEventListener('click',         () => copyURL(false));
 document.getElementById('btn-copy-transparent').addEventListener('click', () => copyURL(true));
 
-const params  = new URLSearchParams(location.search);
-const TWITCH  = (params.get('twitch') || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-const KICK    = (params.get('kick')   || '').split(',').map(s => s.trim().toLowerCase()).filter(Boolean);
-const MAX     = Math.max(10, Math.min(200, parseInt(params.get('max') || '50', 10)));
-
-if (params.get('bg') === 'transparent') document.body.classList.add('transparent');
-if (TWITCH.length || KICK.length) document.getElementById('notice').classList.add('hidden');
-
+// ── Helpers ───────────────────────────────────────────────────
 const msgsEl = document.getElementById('messages');
 
-// ── Helpers ───────────────────────────────────────────────────
 function esc(s) {
-  return String(s)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
 function userColor(name) {
@@ -215,7 +523,7 @@ function userColor(name) {
 
 function addMsg(platform, username, text) {
   const el = document.createElement('div');
-  el.className = 'msg';
+  el.className = `msg anim-${currentAnim}`;
   el.innerHTML =
     `<span class="badge ${esc(platform)}">${esc(platform)}</span>` +
     `<span class="username" style="color:${userColor(username)}">${esc(username)}</span>` +
@@ -231,20 +539,17 @@ if (TWITCH.length) {
 
   function twitchConnect() {
     const ws = new WebSocket('wss://irc-ws.chat.twitch.tv:443');
-
     ws.addEventListener('open', () => {
       ws.send('PASS SCHMOOPIIE');
       ws.send('NICK justinfan' + (Math.floor(Math.random() * 80000) + 10000));
       ws.send('CAP REQ :twitch.tv/tags twitch.tv/commands');
       TWITCH.forEach(ch => ws.send('JOIN #' + ch));
     });
-
     ws.addEventListener('message', e => {
       for (const line of e.data.split('\r\n')) {
         if (!line) continue;
         if (line.startsWith('PING')) { ws.send('PONG :tmi.twitch.tv'); continue; }
         if (!line.includes('PRIVMSG')) continue;
-
         let name = '';
         const tag = line.match(/^@([^ ]+)/);
         if (tag) {
@@ -255,7 +560,6 @@ if (TWITCH.length) {
         if (pm) addMsg('twitch', name || pm[1], pm[2]);
       }
     });
-
     ws.addEventListener('close', () => { if (active) setTimeout(twitchConnect, 5000); });
     ws.addEventListener('error', () => ws.close());
   }
@@ -263,7 +567,7 @@ if (TWITCH.length) {
   twitchConnect();
 }
 
-// ── Kick polling ──────────────────────────────────────────────
+// ── Kick ──────────────────────────────────────────────────────
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 for (const channel of KICK) {

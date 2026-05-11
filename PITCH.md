@@ -31,27 +31,36 @@ Just paste a stream URL. That's it.
 ### 1. Unified Combined Chat
 All messages from all platforms appear in one scrolling feed, colour-coded by platform. You see your entire audience — not one third of it.
 
-### 2. Side-by-Side Native Chat Panels
+### 2. Live Stream Titles on Every Card
+StreamFusion automatically fetches the live stream title for each platform as soon as you add a stream — no manual labelling, no guessing which window is which:
+- **YouTube** — title from the InnerTube API
+- **Twitch** — live stream title via Twitch's public GQL endpoint (no OAuth)
+- **Kick** — session title from the Kick channel API
+
+### 3. Side-by-Side Native Chat Panels
 Each platform's native chat embed stays visible alongside the combined feed. Nothing is hidden. No functionality is lost.
 
-### 3. OBS Overlay — One Click
-Click **Overlay**, and StreamFusion generates a browser-source URL ready to paste directly into OBS. Your stream overlay shows combined chat from every platform in a clean, customisable panel. No OBS plugins. No RTMP tricks.
+### 4. Popout Combined Chat Window
+A dedicated popout button opens the unified chat feed in its own persistent window — ideal for a second monitor or a floating overlay during a live session. The window uses Web Locks, an inline Web Worker, and a canvas rendering loop to prevent Chrome from closing or freezing it due to inactivity.
 
-### 4. Screen-Always-On
+### 5. OBS Overlay — One Click
+Click **Overlay**, and StreamFusion generates a browser-source URL ready to paste directly into OBS. Five animation styles (Slide Up, Pop, Fade, Glide, Drop) with large, clearly visible text designed for readability on stream. No OBS plugins. No RTMP tricks.
+
+### 6. Screen-Always-On
 StreamFusion uses the browser Wake Lock API to keep your display active during broadcasts — no more streams dying because your monitor went to sleep mid-cast.
 
-### 5. Persistent Sessions
+### 7. Persistent Sessions
 Your streams are remembered across sessions via localStorage. Open the app, and your last configuration is already loaded.
 
 ---
 
 ## Platform Coverage
 
-| Platform | Chat Source | Method | Auth Required |
-|----------|------------|--------|---------------|
-| **Twitch** | IRC WebSocket | Direct anonymous connection | None |
-| **Kick** | Pusher WebSocket | Direct via public API | None |
-| **YouTube** | InnerTube API | Local proxy server | None |
+| Platform | Chat Source | Method | Stream Title | Auth Required |
+|----------|------------|--------|--------------|---------------|
+| **Twitch** | IRC WebSocket | Direct anonymous connection | Public GQL API | None |
+| **Kick** | Pusher WebSocket | Direct via public API | Kick channel API | None |
+| **YouTube** | InnerTube API | Local proxy server | InnerTube `/next` | None |
 
 All three platforms work **without any API keys, accounts, or subscriptions**.
 
@@ -62,6 +71,8 @@ All three platforms work **without any API keys, accounts, or subscriptions**.
 | Feature | StreamFusion | Restream | Castaway | TwitchChat overlay tools |
 |---------|-------------|---------|----------|--------------------------|
 | YouTube + Twitch + Kick unified chat | ✅ | ✅ | ✅ | ❌ (Twitch only) |
+| Live stream titles (all 3 platforms) | ✅ | ✅ | ✅ | ❌ |
+| Popout persistent chat window | ✅ | ❌ | ❌ | ❌ |
 | No subscription / free | ✅ | ❌ ($16–$49/mo) | ❌ ($9–$25/mo) | ✅ |
 | No account required | ✅ | ❌ | ❌ | ✅ |
 | OBS overlay built-in | ✅ | ✅ | ❌ | ✅ |
@@ -71,7 +82,7 @@ All three platforms work **without any API keys, accounts, or subscriptions**.
 | Native emote rendering | ✅ | ✅ | ❌ | ✅ |
 | Data stays on your machine | ✅ | ❌ | ❌ | varies |
 
-**StreamFusion's core advantage**: it is the only tool in this category that is completely free, requires no account, stores no data externally, and runs entirely on the user's own hardware.
+**StreamFusion's core advantage**: it is the only tool in this category that is completely free, requires no account, stores no data externally, runs entirely on the user's own hardware, and now surfaces live stream titles for every platform the moment a stream is added.
 
 ---
 
@@ -81,10 +92,10 @@ All three platforms work **without any API keys, accounts, or subscriptions**.
 Multi-platform streaming is now the default for serious creators. Any creator broadcasting to more than one platform simultaneously is the direct user. There are an estimated **8–12 million active multi-platform streamers** globally as of 2024, growing 30%+ YoY as Kick continues its aggressive creator acquisition.
 
 ### Streaming Agencies & Management Companies
-Agencies managing multiple talents need unified dashboards. StreamFusion's overlay and combined chat view reduce the cognitive load of managing a live broadcast.
+Agencies managing multiple talents need unified dashboards. StreamFusion's overlay, popout window, and combined chat view reduce the cognitive load of managing a live broadcast across a roster of creators.
 
 ### Esports Organisations
-Tournament broadcasts routinely simulcast across YouTube and Twitch. A single moderation view across both platforms has direct operational value.
+Tournament broadcasts routinely simulcast across YouTube and Twitch. A single moderation view across both platforms — with stream titles visible per card — has direct operational value.
 
 ### Content Studios & Production Companies
 Live production teams use OBS professionally. A browser-source overlay that requires zero recurring cost and zero external accounts fits directly into existing workflows.
@@ -94,7 +105,7 @@ Live production teams use OBS professionally. A browser-source overlay that requ
 ## Revenue Model Options
 
 ### Freemium SaaS
-- **Free tier**: Core functionality as-is (3 platforms, combined chat, OBS overlay)
+- **Free tier**: Core functionality as-is (3 platforms, combined chat, popout window, OBS overlay, stream titles)
 - **Pro tier** ($5–8/month): Chat filtering, keyword alerts, viewer count aggregation, chat moderation actions, custom overlay themes, Discord/Slack bridge
 
 ### B2B Licensing
@@ -118,6 +129,8 @@ StreamFusion is built with **zero external runtime dependencies** — pure Node.
 - **Forkable baseline** — the architecture is clean enough to extend rapidly
 
 The local proxy architecture also means **all chat data stays on the user's machine**. In a world where data privacy is a competitive differentiator, this is a genuine advantage over cloud-only competitors.
+
+The popout window architecture uses three independent browser APIs (Web Locks, Web Workers, Canvas rAF) in parallel to ensure the combined chat feed stays alive regardless of Chrome's background tab throttling or memory-saving behaviour — a level of reliability that cloud-hosted tools cannot guarantee for embedded widgets.
 
 ---
 
@@ -146,7 +159,7 @@ The local proxy architecture also means **all chat data stays on the user's mach
 
 ## The Ask
 
-StreamFusion is currently a working, feature-complete MVP. The immediate next steps to take it from side project to product are:
+StreamFusion is currently a working, feature-complete MVP with live stream titles across all three platforms, a persistent popout chat window, and a polished OBS overlay. The immediate next steps to take it from side project to product are:
 
 1. **Hosted cloud version** — eliminate the `node server.js` step entirely with a deployed backend, removing the only friction point in the setup flow
 2. **Overlay theme editor** — visual customisation for OBS overlays (the #1 requested feature in comparable tools)
